@@ -1,11 +1,15 @@
 # NVIDIA GPU Metrics Logger Dependencies
 # Core dependencies for GPU monitoring
-nvidia-ml-py3>=11.450.129
-pandas>=1.5.0
+nvidia-ml-py3
+pandas
+
+# Web API dependencies
+fastapi
+uvicorn
 
 # Optional dependencies for enhanced functionality
-psutil>=5.9.0
+psutil
 
 # Development dependencies
-pytest>=7.0.0
-pytest-cov>=4.0.0
+pytest
+pytest-cov
