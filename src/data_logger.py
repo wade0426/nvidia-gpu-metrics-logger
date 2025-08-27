@@ -89,8 +89,8 @@ class DataLogger:
         初始化 CSV 檔案
         """
         timestamp = format_file_timestamp()
-        # filename = f"{self.filename_prefix}_{timestamp}.csv"
-        filename = f"{self.filename_prefix}.csv"
+        filename = f"{self.filename_prefix}_{timestamp}.csv"
+        # filename = f"{self.filename_prefix}.csv"
         self.current_file_path = os.path.join(self.output_directory, filename)
         
         try:
