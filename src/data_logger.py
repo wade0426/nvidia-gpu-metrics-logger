@@ -222,6 +222,7 @@ class DataLogger:
         if not self.writer_thread or not self.writer_thread.is_alive():
             return
         
+        self.logger.info("正在停止資料寫入執行緒...")
         self.is_running = False
         
         # 發送停止訊號
@@ -229,10 +230,12 @@ class DataLogger:
             self.write_queue.put(None)
         
         # 等待執行緒結束
-        self.writer_thread.join(timeout=5.0)
+        self.writer_thread.join(timeout=3.0)
         
         if self.writer_thread.is_alive():
-            self.logger.warning("寫入執行緒無法正常停止")
+            self.logger.warning("寫入執行緒無法在 3 秒內正常停止")
+        else:
+            self.logger.info("資料寫入執行緒已成功停止")
     
     def log_metrics(self, metrics_list: List[GPUMetrics]) -> bool:
         """
@@ -389,9 +392,22 @@ class DataLogger:
             if self.enable_threading:
                 self._stop_writer_thread()
             
-            # 等待佇列中的資料處理完成
+            # 等待佇列中的資料處理完成（有超時限制）
             if self.write_queue:
-                self.write_queue.join()
+                try:
+                    # 嘗試在 2 秒內完成佇列處理
+                    import time
+                    start_time = time.time()
+                    timeout = 2.0
+                    
+                    while not self.write_queue.empty() and (time.time() - start_time) < timeout:
+                        time.sleep(0.1)
+                    
+                    if not self.write_queue.empty():
+                        self.logger.warning("佇列中仍有未處理的資料，但已超時")
+                        
+                except Exception as e:
+                    self.logger.warning(f"等待佇列處理時發生錯誤: {e}")
             
             self.logger.info("資料記錄器已關閉")
             

@@ -12,6 +12,7 @@ import time
 import signal
 import argparse
 import logging
+import threading
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
@@ -118,9 +119,27 @@ class MainController:
         """
         註冊訊號處理器
         """
+        self._signal_received = False
+        
         def signal_handler(signum, frame):
+            if self._signal_received:
+                # 如果已經接收過信號，強制退出
+                print(f"\\n再次接收到訊號 {signum}，強制退出程式...")
+                os._exit(1)
+            
             print(f"\\n接收到訊號 {signum}，正在停止監控...")
+            self._signal_received = True
             self.stop()
+            
+            # 設定超時，如果無法正常停止則強制退出
+            def force_exit():
+                time.sleep(5)  # 給 5 秒時間正常停止
+                if self.is_running:
+                    print("\\n程式無法正常停止，強制退出...")
+                    os._exit(1)
+            
+            force_exit_thread = threading.Thread(target=force_exit, daemon=True)
+            force_exit_thread.start()
         
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
@@ -245,6 +264,10 @@ class MainController:
         self.is_running = False
         
         try:
+            # 停止 GPU 監控器
+            if self.gpu_monitor:
+                self.gpu_monitor.stop()
+            
             # 清空資料記錄器緩存
             if self.data_logger:
                 self.logger.info("正在清空資料緩存...")

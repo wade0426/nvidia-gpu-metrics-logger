@@ -61,6 +61,7 @@ class GPUMonitor:
         self.gpu_count = 0
         self.gpu_handles = []
         self.is_initialized = False
+        self.is_running = False
         
         # 初始化 NVIDIA ML 庫
         self._initialize_nvml()
@@ -364,7 +365,7 @@ class GPUMonitor:
     
     def start_monitoring(self, interval_seconds: int = 5, callback=None) -> None:
         """
-        開始監控（無限迴圈）
+        開始監控（可控制的迴圈）
         
         Args:
             interval_seconds: 監控間隔秒數
@@ -374,10 +375,11 @@ class GPUMonitor:
             self.logger.error("GPU 監控器未初始化，無法開始監控")
             return
         
+        self.is_running = True
         self.logger.info(f"開始監控 {self.gpu_count} 個 GPU，間隔 {interval_seconds} 秒")
         
         try:
-            while True:
+            while self.is_running:
                 start_time = time.time()
                 
                 # 收集指標
@@ -390,12 +392,22 @@ class GPUMonitor:
                     except Exception as e:
                         self.logger.error(f"回調函數執行失敗: {e}")
                 
+                # 檢查是否需要停止
+                if not self.is_running:
+                    break
+                
                 # 計算睡眠時間
                 elapsed_time = time.time() - start_time
                 sleep_time = max(0, interval_seconds - elapsed_time)
                 
+                # 分段睡眠，以便更快響應停止信號
                 if sleep_time > 0:
-                    time.sleep(sleep_time)
+                    sleep_interval = 0.1  # 每次睡眠 0.1 秒
+                    remaining_sleep = sleep_time
+                    while remaining_sleep > 0 and self.is_running:
+                        actual_sleep = min(sleep_interval, remaining_sleep)
+                        time.sleep(actual_sleep)
+                        remaining_sleep -= actual_sleep
                 else:
                     self.logger.warning(f"收集指標耗時 {elapsed_time:.2f} 秒，超過設定間隔 {interval_seconds} 秒")
                     
@@ -404,13 +416,23 @@ class GPUMonitor:
         except Exception as e:
             self.logger.error(f"監控過程中發生錯誤: {e}")
         finally:
+            self.is_running = False
             self.cleanup()
+    
+    def stop(self) -> None:
+        """
+        停止監控
+        """
+        if self.is_running:
+            self.logger.info("正在停止 GPU 監控...")
+            self.is_running = False
     
     def cleanup(self) -> None:
         """
         清理資源
         """
         try:
+            self.is_running = False
             if self.is_initialized:
                 pynvml.nvmlShutdown()
                 self.logger.info("NVIDIA ML 庫已關閉")
