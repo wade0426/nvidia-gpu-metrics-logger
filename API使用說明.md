@@ -58,7 +58,7 @@ python api-main.py
   - `start_date`: 開始日期 (必需, YYYY-MM-DD)
   - `end_date`: 結束日期 (必需, YYYY-MM-DD)
   - `gpu_id`: GPU ID (可選)
-- **描述**: 取得指定期間內每日的最高最低使用率
+- **描述**: 取得指定期間內每日的最高最低使用率。對於沒有資料的日期，會預設顯示 0 值
 
 ### 5. GPU 清單 API
 - **端點**: `GET /api/gpu/list`
@@ -118,6 +118,7 @@ http://localhost:8000/api/gpu/realtime
 3. 所有日期參數格式為 `YYYY-MM-DD`
 4. API 支援 CORS，可以從前端應用程式直接調用
 5. 錯誤情況會回傳適當的 HTTP 狀態碼和錯誤訊息
+6. 每日使用率 API 會為指定期間內的所有日期提供資料，沒有資料的日期會顯示 0 值
 
 ## 資料格式
 API 回傳的所有資料都遵循統一格式：
