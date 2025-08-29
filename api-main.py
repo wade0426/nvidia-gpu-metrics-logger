@@ -3,8 +3,9 @@ import glob
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import uvicorn
 
 # 初始化 FastAPI 應用
@@ -25,6 +26,22 @@ app.add_middleware(
 
 # 定義常數 CSV 存放的資料夾
 CSV_FOLDER = r"D:\Code\Python\nvidia-gpu-metrics-logger\logs"
+
+
+# Pydantic 模型定義
+class StatisticsRequest(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    gpu_id: Optional[int] = None
+
+class HourlyUsageRequest(BaseModel):
+    date: str
+    gpu_id: Optional[int] = None
+
+class DailyUsageRequest(BaseModel):
+    start_date: str
+    end_date: str
+    gpu_id: Optional[int] = None
 
 
 # 資料處理函數
@@ -79,7 +96,7 @@ def filter_by_gpu_id(df: pd.DataFrame, gpu_id: Optional[int]) -> pd.DataFrame:
 
 # API 端點實現
 
-@app.get("/")
+@app.post("/")
 async def root():
     """根路由，提供 API 基本資訊"""
     return {
@@ -89,17 +106,13 @@ async def root():
     }
 
 
-@app.get("/api/gpu/statistics")
-async def get_gpu_statistics(
-    start_date: Optional[str] = Query(None, description="開始日期 (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="結束日期 (YYYY-MM-DD)"),
-    gpu_id: Optional[int] = Query(None, description="GPU ID")
-):
+@app.post("/api/gpu/statistics")
+async def get_gpu_statistics(request: StatisticsRequest):
     """取得 GPU 統計數據"""
     try:
         df = load_csv_data()
-        df = filter_by_date_range(df, start_date, end_date)
-        df = filter_by_gpu_id(df, gpu_id)
+        df = filter_by_date_range(df, request.start_date, request.end_date)
+        df = filter_by_gpu_id(df, request.gpu_id)
         
         if df.empty:
             raise HTTPException(status_code=404, detail="指定條件下沒有找到資料")
@@ -142,22 +155,19 @@ async def get_gpu_statistics(
         raise HTTPException(status_code=500, detail=f"取得統計數據時發生錯誤: {str(e)}")
 
 
-@app.get("/api/gpu/hourly-usage")
-async def get_hourly_usage(
-    date: str = Query(..., description="指定日期 (YYYY-MM-DD)"),
-    gpu_id: Optional[int] = Query(None, description="GPU ID")
-):
+@app.post("/api/gpu/hourly-usage")
+async def get_hourly_usage(request: HourlyUsageRequest):
     """取得指定日期的每小時使用率"""
     try:
         df = load_csv_data()
         
         # 過濾指定日期
-        target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        target_date = datetime.strptime(request.date, "%Y-%m-%d").date()
         df = df[df['date'] == target_date]
-        df = filter_by_gpu_id(df, gpu_id)
+        df = filter_by_gpu_id(df, request.gpu_id)
         
         if df.empty:
-            raise HTTPException(status_code=404, detail=f"在 {date} 沒有找到資料")
+            raise HTTPException(status_code=404, detail=f"在 {request.date} 沒有找到資料")
         
         # 計算每小時平均使用率
         hourly_data = df.groupby('hour')['utilization_gpu'].mean().reset_index()
@@ -179,7 +189,7 @@ async def get_hourly_usage(
             "success": True,
             "data": {
                 "chart_data": chart_data,
-                "date": date
+                "date": request.date
             }
         }
     
@@ -187,21 +197,17 @@ async def get_hourly_usage(
         raise HTTPException(status_code=500, detail=f"取得每小時使用率時發生錯誤: {str(e)}")
 
 
-@app.get("/api/gpu/daily-usage")
-async def get_daily_usage(
-    start_date: str = Query(..., description="開始日期 (YYYY-MM-DD)"),
-    end_date: str = Query(..., description="結束日期 (YYYY-MM-DD)"),
-    gpu_id: Optional[int] = Query(None, description="GPU ID")
-):
+@app.post("/api/gpu/daily-usage")
+async def get_daily_usage(request: DailyUsageRequest):
     """取得指定期間的每日使用率"""
     try:
         df = load_csv_data()
-        df = filter_by_date_range(df, start_date, end_date)
-        df = filter_by_gpu_id(df, gpu_id)
+        df = filter_by_date_range(df, request.start_date, request.end_date)
+        df = filter_by_gpu_id(df, request.gpu_id)
         
         # 建立指定期間的完整日期範圍
-        start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+        start_date_obj = datetime.strptime(request.start_date, "%Y-%m-%d").date()
+        end_date_obj = datetime.strptime(request.end_date, "%Y-%m-%d").date()
         
         # 產生所有日期
         date_range = []
@@ -247,7 +253,7 @@ async def get_daily_usage(
         raise HTTPException(status_code=500, detail=f"取得每日使用率時發生錯誤: {str(e)}")
 
 
-@app.get("/api/gpu/list")
+@app.post("/api/gpu/list")
 async def get_gpu_list():
     """取得 GPU 清單"""
     try:
@@ -273,7 +279,7 @@ async def get_gpu_list():
         raise HTTPException(status_code=500, detail=f"取得 GPU 清單時發生錯誤: {str(e)}")
 
 
-@app.get("/api/gpu/realtime")
+@app.post("/api/gpu/realtime")
 async def get_realtime_data():
     """取得最新的即時 GPU 資料"""
     try:
