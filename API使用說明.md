@@ -34,26 +34,27 @@ python api-main.py
 ## API 端點
 
 ### 1. 根路由
-- **端點**: `GET /`
+- **端點**: `POST /`
 - **描述**: API 基本資訊
 
 ### 2. 統計數據 API
-- **端點**: `GET /api/gpu/statistics`
+- **端點**: `POST /api/gpu/statistics`
 - **參數**: 
   - `start_date`: 開始日期 (可選, YYYY-MM-DD)
   - `end_date`: 結束日期 (可選, YYYY-MM-DD)
   - `gpu_id`: GPU ID (可選)
 - **描述**: 取得 GPU 使用率統計數據
+- **注意**: 當所有參數都是可選時，即使不需要任何參數，也必須傳送一個空的 JSON 物件 `{}`
 
 ### 3. 每小時使用率 API
-- **端點**: `GET /api/gpu/hourly-usage`
+- **端點**: `POST /api/gpu/hourly-usage`
 - **參數**: 
   - `date`: 指定日期 (必需, YYYY-MM-DD)
   - `gpu_id`: GPU ID (可選)
 - **描述**: 取得指定日期的 24 小時使用率資料
 
 ### 4. 每日使用率 API
-- **端點**: `GET /api/gpu/daily-usage`
+- **端點**: `POST /api/gpu/daily-usage`
 - **參數**: 
   - `start_date`: 開始日期 (必需, YYYY-MM-DD)
   - `end_date`: 結束日期 (必需, YYYY-MM-DD)
@@ -61,50 +62,70 @@ python api-main.py
 - **描述**: 取得指定期間內每日的最高最低使用率。對於沒有資料的日期，會預設顯示 0 值
 
 ### 5. GPU 清單 API
-- **端點**: `GET /api/gpu/list`
+- **端點**: `POST /api/gpu/list`
+- **參數**: 無
 - **描述**: 取得所有 GPU 的清單資訊
+- **注意**: 此 API 不需要任何參數，但仍需傳送一個空的 JSON 物件 `{}`
 
 ### 6. 即時資料 API
-- **端點**: `GET /api/gpu/realtime`
+- **端點**: `POST /api/gpu/realtime`
+- **參數**: 無
 - **描述**: 取得最新的 GPU 即時監控資料
+- **注意**: 此 API 不需要任何參數，但仍需傳送一個空的 JSON 物件 `{}`
 
 ## 使用範例
 
 ### 取得統計數據
 ```bash
-# 取得所有資料的統計
-http://localhost:8000/api/gpu/statistics
+# 取得所有資料的統計（使用 POST 和空 JSON）
+curl -X POST http://localhost:8000/api/gpu/statistics \
+  -H "Content-Type: application/json" \
+  -d '{}'
 
 # 取得指定日期範圍的統計
-http://localhost:8000/api/gpu/statistics?start_date=2025-08-20&end_date=2025-08-27
+curl -X POST http://localhost:8000/api/gpu/statistics \
+  -H "Content-Type: application/json" \
+  -d '{"start_date": "2025-08-20", "end_date": "2025-08-27"}'
 
 # 取得指定 GPU 的統計
-http://localhost:8000/api/gpu/statistics?gpu_id=0
+curl -X POST http://localhost:8000/api/gpu/statistics \
+  -H "Content-Type: application/json" \
+  -d '{"gpu_id": 0}'
 ```
 
 ### 取得每小時使用率
 ```bash
 # 取得指定日期的每小時使用率
-http://localhost:8000/api/gpu/hourly-usage?date=2025-08-27
+curl -X POST http://localhost:8000/api/gpu/hourly-usage \
+  -H "Content-Type: application/json" \
+  -d '{"date": "2025-08-27"}'
 
 # 取得指定 GPU 的每小時使用率
-http://localhost:8000/api/gpu/hourly-usage?date=2025-08-27&gpu_id=0
+curl -X POST http://localhost:8000/api/gpu/hourly-usage \
+  -H "Content-Type: application/json" \
+  -d '{"date": "2025-08-27", "gpu_id": 0}'
 ```
 
 ### 取得每日使用率
 ```bash
 # 取得指定期間的每日使用率
-http://localhost:8000/api/gpu/daily-usage?start_date=2025-08-20&end_date=2025-08-27
+curl -X POST http://localhost:8000/api/gpu/daily-usage \
+  -H "Content-Type: application/json" \
+  -d '{"start_date": "2025-08-20", "end_date": "2025-08-27"}'
 ```
 
 ### 取得 GPU 清單
 ```bash
-http://localhost:8000/api/gpu/list
+curl -X POST http://localhost:8000/api/gpu/list \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 ### 取得即時資料
 ```bash
-http://localhost:8000/api/gpu/realtime
+curl -X POST http://localhost:8000/api/gpu/realtime \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 ## API 文檔
@@ -119,6 +140,8 @@ http://localhost:8000/api/gpu/realtime
 4. API 支援 CORS，可以從前端應用程式直接調用
 5. 錯誤情況會回傳適當的 HTTP 狀態碼和錯誤訊息
 6. 每日使用率 API 會為指定期間內的所有日期提供資料，沒有資料的日期會顯示 0 值
+7. **重要**: 所有 POST 請求都必須包含 `Content-Type: application/json` 標頭
+8. **重要**: 當 API 不需要任何參數時，仍必須傳送一個空的 JSON 物件 `{}`
 
 ## 資料格式
 API 回傳的所有資料都遵循統一格式：
