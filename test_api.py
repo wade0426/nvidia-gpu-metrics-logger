@@ -16,7 +16,7 @@ def test_api_endpoint(endpoint, params=None):
     """測試 API 端點"""
     try:
         url = f"{BASE_URL}{endpoint}"
-        response = requests.get(url, params=params)
+        response = requests.post(url, json=params)
         
         print(f"測試: {endpoint}")
         print(f"狀態碼: {response.status_code}")
@@ -55,11 +55,12 @@ def main():
     test_api_endpoint("/api/gpu/realtime")
     
     # 測試統計數據
-    test_api_endpoint("/api/gpu/statistics")
+    test_api_endpoint("/api/gpu/statistics", {})
     
     # 測試每小時使用率（使用今天的日期）
     today = date.today().strftime("%Y-%m-%d")
-    test_api_endpoint("/api/gpu/hourly-usage", {"date": today})
+    # test_api_endpoint("/api/gpu/hourly-usage", {"date": today})
+    test_api_endpoint("/api/gpu/hourly-usage", {"date": "2025-08-27"})
     
     # 測試每日使用率（使用過去7天）
     from datetime import timedelta
