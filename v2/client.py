@@ -136,7 +136,7 @@ class GPUMetricsClient:
             server_port = self.config.getint('SERVER', 'server_port')
             connection_timeout = self.config.getint('SERVER', 'connection_timeout', fallback=30)
             
-            url = f"http://{server_host}:{server_port}/health"
+            url = f"{server_host}:{server_port}/health"
             response = requests.get(url, timeout=connection_timeout)
             
             if response.status_code == 200:
@@ -247,7 +247,7 @@ class GPUMetricsClient:
         retry_delay = self.config.getfloat('NETWORK', 'retry_delay', fallback=5)
         retry_backoff = self.config.getfloat('NETWORK', 'retry_backoff', fallback=2.0)
         
-        url = f"http://{server_host}:{server_port}{api_endpoint}"
+        url = f"{server_host}:{server_port}{api_endpoint}"
         
         for attempt in range(max_retries + 1):
             try:
