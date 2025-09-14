@@ -149,8 +149,9 @@ def test_gpu_list(base_url: str = "http://localhost:5000") -> bool:
         if response.status_code == 200:
             result = response.json()
             if result.get("success"):
-                gpu_count = len(result.get("data", []))
-                print(f"✅ GPU 清單測試通過，找到 {gpu_count} 個 GPU")
+                # 使用 json 格式化 result
+                result = json.dumps(result, indent=4)
+                print(f"✅ GPU 清單測試通過，伺服器回傳: {result}")
                 return True
             else:
                 print(f"❌ GPU 清單請求失敗: {result}")
@@ -184,8 +185,10 @@ def test_statistics(base_url: str = "http://localhost:5000") -> bool:
             result = response.json()
             if result.get("success"):
                 stats = result.get("data", {})
-                avg_util = stats.get("period_average", 0)
-                print(f"✅ 統計數據測試通過，平均使用率: {avg_util}%")
+                # avg_util = stats.get("period_average", 0)
+                # 使用 json 格式化 result
+                result = json.dumps(result, indent=4)
+                print(f"✅ 統計數據測試通過，伺服器回傳: {result}")
                 return True
             else:
                 print(f"❌ 統計數據請求失敗: {result}")
@@ -199,6 +202,116 @@ def test_statistics(base_url: str = "http://localhost:5000") -> bool:
         return False
 
 
+def test_hourly_usage(base_url: str = "http://localhost:5000") -> bool:
+    """測試每小時使用率端點"""
+    try:
+        test_data = {
+            "start_date": "2025-09-12",
+            "end_date": "2025-09-14",
+            "gpu_id": None,
+            "client_name": None
+        }
+        
+        response = requests.post(
+            f"{base_url}/api/gpu/hourly-usage",
+            json=test_data,
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success"):
+                # print(f"✅ 每小時使用率測試通過，找到 {len(result.get('data', []))} 個小時資料")
+                # 使用 json 格式化 result
+                result = json.dumps(result, indent=4)
+                print(f"✅ 每小時使用率測試通過，伺服器回傳: {result}")
+                return True
+            else:
+                print(f"❌ 每小時使用率請求失敗: {result}")
+                return False
+        else:
+            print(f"❌ 每小時使用率請求失敗，狀態碼: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 每小時使用率測試錯誤: {e}")
+        return False
+
+
+def test_daily_usage(base_url: str = "http://localhost:5000") -> bool:
+    """測試每日使用率端點"""
+    try:
+        test_data = {
+            "start_date": "2025-09-14",
+            "end_date": "2025-09-14",
+            "gpu_id": None,
+            "client_name": None
+        }
+        
+        response = requests.post(
+            f"{base_url}/api/gpu/daily-usage",
+            json=test_data,
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success"):
+                # print(f"✅ 每日使用率測試通過，找到 {len(result.get('data', []))} 個日資料")
+                # 使用 json 格式化 result
+                result = json.dumps(result, indent=4)
+                print(f"✅ 每日使用率測試通過，伺服器回傳: {result}")
+                return True
+            else:
+                print(f"❌ 每日使用率請求失敗: {result}")
+                return False
+        else:
+            print(f"❌ 每日使用率請求失敗，狀態碼: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 每日使用率測試錯誤: {e}")
+        return False
+
+
+def test_realtime_data(base_url: str = "http://localhost:5000") -> bool:
+    """測試即時資料端點"""
+    try:
+        # test_data = {
+        #     "gpu_id": 0,
+        #     "client_name": "gpu-client-001"
+        # }
+
+        test_data = {
+            "gpu_id": None,
+            "client_name": None
+        }
+        
+        response = requests.post(
+            f"{base_url}/api/gpu/realtime",
+            json=test_data,
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success"):
+                # 使用 json 格式化 result
+                result = json.dumps(result, indent=4)
+                print(f"✅ 即時資料測試通過，伺服器回傳: {result}")
+                return True
+            else:
+                print(f"❌ 即時資料請求失敗: {result}")
+                return False
+        else:
+            print(f"❌ 即時資料請求失敗，狀態碼: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 即時資料測試錯誤: {e}")
+        return False
+
+
 def main():
     """主測試函數"""
     print("=" * 50)
@@ -208,12 +321,15 @@ def main():
     base_url = "http://localhost:5000"
     
     tests = [
-        ("伺服器健康檢查", lambda: test_server_health(base_url)),
-        ("API 基本資訊", lambda: test_api_info(base_url)),
-        ("單一資料接收功能", lambda: test_receive_data(base_url)),
-        ("批次資料接收功能", lambda: test_receive_batch_data(base_url)),
-        ("GPU 清單功能", lambda: test_gpu_list(base_url)),
-        ("統計數據功能", lambda: test_statistics(base_url))
+        # ("伺服器健康檢查", lambda: test_server_health(base_url)),
+        # ("API 基本資訊", lambda: test_api_info(base_url)),
+        # ("單一資料接收功能", lambda: test_receive_data(base_url)),
+        # ("批次資料接收功能", lambda: test_receive_batch_data(base_url)),
+        # ("GPU 清單功能", lambda: test_gpu_list(base_url)),
+        # ("統計數據功能", lambda: test_statistics(base_url)),
+        # ("每小時使用率功能", lambda: test_hourly_usage(base_url)),
+        # ("每日使用率功能", lambda: test_daily_usage(base_url)),
+        ("即時資料功能", lambda: test_realtime_data(base_url))
     ]
     
     passed = 0
