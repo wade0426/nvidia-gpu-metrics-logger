@@ -218,7 +218,8 @@ class GPUMetricsClient:
                             metrics['fan_speed'] = fan_speed
                         except Exception as e:
                             self.logger.warning(f"無法取得 GPU {gpu_id} 風扇轉速: {e}")
-                            metrics['fan_speed'] = None
+                            # 當系統無法取得風扇轉速時，預設為0
+                            metrics['fan_speed'] = 0
                     
                     metrics_list.append(metrics)
                     
