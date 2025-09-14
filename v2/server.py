@@ -625,28 +625,50 @@ async def health_check():
 
 
 @app.post("/api/receive-data")
-async def receive_gpu_data(request: ReceiveDataRequest):
-    """接收 GPU 監控資料"""
+async def receive_gpu_data(request: Union[ReceiveDataRequest, List[ReceiveDataRequest]]):
+    """接收 GPU 監控資料（支援單一或批次）"""
     try:
-        server_instance.logger.info(f"接收來自 {request.client_name} 的 GPU {request.gpu_id} 資料")
+        # 統一處理為列表格式
+        if isinstance(request, list):
+            data_list = request
+        else:
+            data_list = [request]
         
-        # 轉換為字典格式
-        data_dict = request.dict()
+        server_instance.logger.info(f"接收 {len(data_list)} 筆 GPU 監控資料")
         
-        # 儲存到 CSV
-        success = server_instance.save_to_csv(data_dict)
+        success_count = 0
+        failed_count = 0
         
-        if success:
+        # 批次處理每筆資料
+        for data_item in data_list:
+            try:
+                # 轉換為字典格式
+                data_dict = data_item.dict() if hasattr(data_item, 'dict') else data_item
+                
+                # 儲存到 CSV
+                if server_instance.save_to_csv(data_dict):
+                    success_count += 1
+                else:
+                    failed_count += 1
+                    
+            except Exception as e:
+                server_instance.logger.warning(f"處理單筆資料失敗: {e}")
+                failed_count += 1
+                continue
+        
+        if success_count > 0:
             return {
                 "success": True,
-                "message": "Data received and saved successfully",
-                "timestamp": request.timestamp
+                "message": f"Batch data received: {success_count} successful, {failed_count} failed",
+                "received_count": success_count,
+                "failed_count": failed_count,
+                "timestamp": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
         else:
-            raise HTTPException(status_code=500, detail="Failed to save data")
+            raise HTTPException(status_code=500, detail="All data failed to save")
             
     except Exception as e:
-        server_instance.logger.error(f"接收資料時發生錯誤: {e}")
+        server_instance.logger.error(f"接收批次資料時發生錯誤: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 

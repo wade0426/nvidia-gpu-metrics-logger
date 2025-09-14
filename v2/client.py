@@ -259,8 +259,18 @@ class GPUMetricsClient:
                 )
                 
                 if response.status_code == 200:
-                    self.logger.info(f"成功傳送 {len(data_batch)} 筆資料到服務器")
-                    return True
+                    try:
+                        response_data = response.json()
+                        if response_data.get("success"):
+                            received_count = response_data.get("received_count", len(data_batch))
+                            failed_count = response_data.get("failed_count", 0)
+                            self.logger.info(f"成功傳送資料到服務器：{received_count} 成功，{failed_count} 失敗")
+                            return True
+                        else:
+                            self.logger.warning(f"服務器處理失敗: {response_data.get('message', 'Unknown error')}")
+                    except json.JSONDecodeError:
+                        self.logger.info(f"成功傳送 {len(data_batch)} 筆資料到服務器")
+                        return True
                 else:
                     self.logger.warning(f"服務器回應錯誤，狀態碼: {response.status_code}, 內容: {response.text}")
                     

@@ -44,7 +44,7 @@ def test_api_info(base_url: str = "http://localhost:5000") -> bool:
 
 
 def test_receive_data(base_url: str = "http://localhost:5000") -> bool:
-    """測試資料接收端點"""
+    """測試資料接收端點（單一資料）"""
     try:
         test_data = {
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -71,18 +71,67 @@ def test_receive_data(base_url: str = "http://localhost:5000") -> bool:
         if response.status_code == 200:
             result = response.json()
             if result.get("success"):
-                print("✅ 資料接收測試通過")
+                print("✅ 單一資料接收測試通過")
                 return True
             else:
-                print(f"❌ 資料接收失敗: {result}")
+                print(f"❌ 單一資料接收失敗: {result}")
                 return False
         else:
-            print(f"❌ 資料接收請求失敗，狀態碼: {response.status_code}")
+            print(f"❌ 單一資料接收請求失敗，狀態碼: {response.status_code}")
             print(f"   回應內容: {response.text}")
             return False
             
     except Exception as e:
-        print(f"❌ 資料接收測試錯誤: {e}")
+        print(f"❌ 單一資料接收測試錯誤: {e}")
+        return False
+
+
+def test_receive_batch_data(base_url: str = "http://localhost:5000") -> bool:
+    """測試批次資料接收端點"""
+    try:
+        # 創建批次測試資料
+        batch_data = []
+        for i in range(3):
+            test_data = {
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "gpu_id": i,
+                "gpu_name": f"NVIDIA Test GPU {i}",
+                "utilization_gpu": 70.0 + i * 5,
+                "utilization_memory": 80.0 + i * 2,
+                "memory_total": 8192,
+                "memory_used": 6000 + i * 200,
+                "memory_free": 2192 - i * 200,
+                "temperature": 60 + i * 3,
+                "power_draw": 170.0 + i * 10,
+                "power_limit": 220.0,
+                "fan_speed": 50 + i * 5,
+                "client_name": "test-client-batch"
+            }
+            batch_data.append(test_data)
+        
+        response = requests.post(
+            f"{base_url}/api/receive-data",
+            json=batch_data,
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success"):
+                received_count = result.get("received_count", 0)
+                failed_count = result.get("failed_count", 0)
+                print(f"✅ 批次資料接收測試通過：{received_count} 成功，{failed_count} 失敗")
+                return True
+            else:
+                print(f"❌ 批次資料接收失敗: {result}")
+                return False
+        else:
+            print(f"❌ 批次資料接收請求失敗，狀態碼: {response.status_code}")
+            print(f"   回應內容: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 批次資料接收測試錯誤: {e}")
         return False
 
 
@@ -161,7 +210,8 @@ def main():
     tests = [
         ("伺服器健康檢查", lambda: test_server_health(base_url)),
         ("API 基本資訊", lambda: test_api_info(base_url)),
-        ("資料接收功能", lambda: test_receive_data(base_url)),
+        ("單一資料接收功能", lambda: test_receive_data(base_url)),
+        ("批次資料接收功能", lambda: test_receive_batch_data(base_url)),
         ("GPU 清單功能", lambda: test_gpu_list(base_url)),
         ("統計數據功能", lambda: test_statistics(base_url))
     ]
