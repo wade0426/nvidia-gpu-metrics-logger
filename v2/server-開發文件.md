@@ -117,10 +117,10 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 **請求參數**：
 ```json
 {
-  "start_date": "2024-01-01",      // 可選，開始日期
-  "end_date": "2024-01-31",        // 可選，結束日期
-  "gpu_id": 0,                     // 可選，GPU ID
-  "client_name": "gpu-client-001"  // 可選，客戶端名稱
+  "start_date": "2024-01-01",      // 可選，開始日期，未填則表示所有時間。
+  "end_date": "2024-01-31",        // 可選，結束日期，未填則表示所有時間。
+  "gpu_id": 0,                     // 可選，GPU ID，未填則表示所有 GPU ID。
+  "client_name": "gpu-client-001"  // 可選，客戶端名稱，未填則表示所有客戶端。
 }
 ```
 
@@ -155,8 +155,8 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 {
   "start_date": "2024-08-27",      // 必填，開始日期
   "end_date": "2024-09-09",        // 必填，結束日期
-  "gpu_id": 0,                     // 可選，GPU ID
-  "client_name": "gpu-client-001"  // 可選，客戶端名稱
+  "gpu_id": 0,                     // 可選，GPU ID，未填則表示所有 GPU ID。
+  "client_name": "gpu-client-001"  // 可選，客戶端名稱，未填則表示所有客戶端。
 }
 ```
 
