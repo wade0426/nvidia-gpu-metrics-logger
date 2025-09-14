@@ -49,27 +49,27 @@ def main():
         return
     
     # 測試 GPU 清單
-    test_api_endpoint("/api/gpu/list")
+    # test_api_endpoint("/api/gpu/list")
     
     # 測試即時資料
-    test_api_endpoint("/api/gpu/realtime")
+    # test_api_endpoint("/api/gpu/realtime")
     
     # 測試統計數據
-    test_api_endpoint("/api/gpu/statistics", {})
+    # test_api_endpoint("/api/gpu/statistics", {"start_date": "2025-09-09", "end_date": "2025-09-09", "gpu_id": 0})
     
     # 測試每小時使用率（使用今天的日期）
-    today = date.today().strftime("%Y-%m-%d")
+    # today = date.today().strftime("%Y-%m-%d")
     # test_api_endpoint("/api/gpu/hourly-usage", {"date": today})
-    test_api_endpoint("/api/gpu/hourly-usage", {"date": "2025-08-27"})
+    test_api_endpoint("/api/gpu/hourly-usage", {"date": "2025-09-09", "gpu_id": 0})
     
     # 測試每日使用率（使用過去7天）
-    from datetime import timedelta
-    end_date = date.today()
-    start_date = end_date - timedelta(days=7)
-    test_api_endpoint("/api/gpu/daily-usage", {
-        "start_date": start_date.strftime("%Y-%m-%d"),
-        "end_date": end_date.strftime("%Y-%m-%d")
-    })
+    # from datetime import timedelta
+    # end_date = date.today()
+    # start_date = end_date - timedelta(days=7)
+    # test_api_endpoint("/api/gpu/daily-usage", {
+    #     "start_date": start_date.strftime("%Y-%m-%d"),
+    #     "end_date": end_date.strftime("%Y-%m-%d")
+    # })
     
     print("測試完成！")
 
