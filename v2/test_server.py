@@ -318,7 +318,7 @@ def main():
     print("NVIDIA GPU Metrics Server 測試工具")
     print("=" * 50)
     
-    base_url = "http://localhost:5000"
+    # base_url = "http://localhost:5000"
     
     tests = [
         # ("伺服器健康檢查", lambda: test_server_health(base_url)),
