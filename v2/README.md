@@ -120,6 +120,34 @@ python client.py
 3. **依賴套件錯誤**
    - 確認已安裝所有必要套件：`pip install -r requirements.txt`
 
+### Windows 使用者常見問題
+
+4. **NVML Shared Library Not Found 錯誤**
+   
+   這個錯誤是 Windows 系統上使用 nvidia-ml-py3 套件時的常見問題。
+   
+   **問題原因**
+   
+   nvidia-ml-py3 套件需要找到 NVIDIA 的 nvml.dll 檔案才能正常運作，但程式找不到這個檔案。在 Windows 系統上，該套件會在以下位置尋找 nvml.dll：
+   - `C:\Program Files\NVIDIA Corporation\NVSMI\nvml.dll`
+   - `C:\Windows\System32\nvml.dll`
+   
+   **解決方案**
+   
+   **方案 1：建立 NVSMI 目錄並複製檔案**
+   
+   1. 建立目錄：
+      ```
+      C:\Program Files\NVIDIA Corporation\NVSMI\
+      ```
+   
+   2. 尋找 nvml.dll 檔案：
+      - 通常在 `C:\Windows\System32\nvml.dll`
+      - 或在 NVIDIA 驅動程式安裝目錄中
+   
+   3. 複製檔案：
+      - 將 nvml.dll 複製到 `C:\Program Files\NVIDIA Corporation\NVSMI\` 目錄中
+
 ### 日誌檢查
 
 - Server 日誌: `./logs/server.log`
