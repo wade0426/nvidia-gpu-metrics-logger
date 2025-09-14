@@ -897,7 +897,6 @@ def main():
             app,
             host=host,
             port=port,
-            debug=debug,
             log_level="info" if not debug else "debug"
         )
         
