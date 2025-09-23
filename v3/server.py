@@ -386,12 +386,15 @@ class GPUMetricsServer:
             max_util = float(df['utilization_gpu'].max())
             min_util = float(df['utilization_gpu'].min())
             
-            # 每小時平均
-            hourly_stats = df.groupby(['date', 'hour'])['utilization_gpu'].mean()
+            # 修改後的每小時統計：如果小時內有任何一筆達到100%，整個小時就是100%
+            hourly_stats = df.groupby(['date', 'hour'])['utilization_gpu'].apply(
+                lambda x: 100.0 if x.max() == 100.0 else x.mean()
+            )
             hourly_avg = float(hourly_stats.mean()) if not hourly_stats.empty else 0.0
-            
-            # 每日平均
-            daily_stats = df.groupby('date')['utilization_gpu'].mean()
+
+            # 修改後的每日統計：使用每小時最高使用率的平均值
+            daily_max_hourly = df.groupby(['date', 'hour'])['utilization_gpu'].max()
+            daily_stats = daily_max_hourly.groupby(level=0).mean()  # 每日的小時最高值平均
             daily_avg = float(daily_stats.mean()) if not daily_stats.empty else 0.0
             
             return {
@@ -430,16 +433,19 @@ class GPUMetricsServer:
                         'utilization': 0.0
                     })
             
-            # 如果有資料，計算實際使用率
+            # 如果有資料，計算實際使用率（修改邏輯）
             if df is not None and not df.empty:
-                hourly_stats = df.groupby(['date', 'hour'])['utilization_gpu'].mean().reset_index()
-                
+                # 修改後的邏輯：如果小時內有任何一筆達到100%，整個小時就是100%
+                hourly_stats = df.groupby(['date', 'hour'])['utilization_gpu'].apply(
+                    lambda x: 100.0 if x.max() == 100.0 else x.mean()
+                ).reset_index(name='utilization_gpu')
+
                 # 更新實際資料
                 for _, row in hourly_stats.iterrows():
                     date_str = row['date'].strftime('%Y-%m-%d')
                     hour = int(row['hour'])
                     utilization = round(float(row['utilization_gpu']), 2)
-                    
+
                     # 找到對應的時間點並更新
                     for item in full_hours:
                         if item['date'] == date_str and item['hour'] == hour:
