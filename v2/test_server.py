@@ -206,10 +206,10 @@ def test_hourly_usage(base_url: str = "http://localhost:5000") -> bool:
     """測試每小時使用率端點"""
     try:
         test_data = {
-            "start_date": "2025-09-12",
+            "start_date": "2025-09-13",
             "end_date": "2025-09-14",
-            "gpu_id": None,
-            "client_name": None
+            "gpu_id": 0,
+            "client_name": "gpu-client-001"
         }
         
         response = requests.post(
@@ -322,13 +322,13 @@ def main():
     base_url = "https://p5000.wade0426.me"
     
     tests = [
-        ("伺服器健康檢查", lambda: test_server_health(base_url)),
-        ("API 基本資訊", lambda: test_api_info(base_url)),
+        # ("伺服器健康檢查", lambda: test_server_health(base_url)),
+        # ("API 基本資訊", lambda: test_api_info(base_url)),
         # ("單一資料接收功能", lambda: test_receive_data(base_url)),
         # ("批次資料接收功能", lambda: test_receive_batch_data(base_url)),
         # ("GPU 清單功能", lambda: test_gpu_list(base_url)),
         # ("統計數據功能", lambda: test_statistics(base_url)),
-        # ("每小時使用率功能", lambda: test_hourly_usage(base_url)),
+        ("每小時使用率功能", lambda: test_hourly_usage(base_url)),
         # ("每日使用率功能", lambda: test_daily_usage(base_url)),
         # ("即時資料功能", lambda: test_realtime_data(base_url))
     ]
