@@ -80,12 +80,29 @@ python client.py
 - `POST /api/gpu/daily-usage` - 取得每日使用率
 - `POST /api/gpu/list` - 取得 GPU 清單
 - `POST /api/gpu/realtime` - 取得即時資料
+- `POST /api/gpu/query-history` - 查詢特定時段的 GPU 詳細歷史紀錄
 
 ### 系統狀態
 - `GET /` - API 基本資訊
 - `GET /health` - 健康檢查
 
-## 資料格式
+## 回應格式
+
+所有 API 回應均遵循統一的 JSON 格式：
+
+```json
+{
+  "code": 200,
+  "message": "OK",
+  "data": { ... } 
+}
+```
+
+- **code**: HTTP 狀態碼 (例如 200, 404, 500)
+- **message**: 處理結果的文字描述
+- **data**: API 回傳的資料內容，失敗或無資料時為 `null`
+
+## 資料儲存格式
 
 監控資料以 CSV 格式存儲，預設路徑為 `./data/gpu_metrics_YYYYMMDD.csv`
 
