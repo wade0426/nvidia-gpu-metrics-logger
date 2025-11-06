@@ -115,6 +115,16 @@ class GPUListSchema(Schema):
     client_name = fields.Str(allow_none=True, missing=None)
 
 
+class GPUHistoryQuerySchema(Schema):
+    """GPU紀錄查詢請求模型"""
+    class Meta:
+        unknown = EXCLUDE
+    
+    start_date = fields.Str(required=True)
+    end_date = fields.Str(required=True)
+    gpu_id = fields.Int(required=True)
+
+
 # ============================================================================
 # 配置管理類
 # ============================================================================
@@ -604,6 +614,96 @@ class GPUMetricsServer:
                 "client_count": 0
             }
 
+    def filter_working_hours(self, df: pd.DataFrame) -> pd.DataFrame:
+        """篩選每天 8:00-20:00 的資料"""
+        if df is None or df.empty:
+            return pd.DataFrame()
+        
+        # 只保留 8:00-19:59 的資料
+        return df[(df['hour'] >= 8) & (df['hour'] < 20)]
+
+    def calculate_hourly_max_utilization(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """計算每小時的最高使用率"""
+        if df is None or df.empty:
+            return []
+        
+        try:
+            # 按日期和小時分組，取最大值
+            hourly_max = df.groupby(['date', 'hour'])['utilization_gpu'].max().reset_index()
+            hourly_max.rename(columns={'utilization_gpu': 'max_utilization'}, inplace=True)
+            
+            # 轉換日期格式
+            hourly_max['date'] = hourly_max['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
+            
+            return hourly_max.to_dict('records')
+        except Exception as e:
+            self.logger.error(f"計算每小時最高使用率失敗: {e}")
+            return []
+
+    def calculate_over90_duration(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """計算每小時內使用率超過90%的持續分鐘數"""
+        if df is None or df.empty:
+            return []
+        
+        try:
+            # 篩選超過90%的紀錄
+            over90_df = df[df['utilization_gpu'] > 90]
+            
+            if over90_df.empty:
+                return []
+            
+            # 計算每小時數量並轉換為分鐘 (每5秒一筆 = 12筆/分鐘)
+            duration_series = over90_df.groupby(['date', 'hour']).size() / 12
+            duration_df = duration_series.reset_index(name='duration')
+            
+            # 轉換日期格式
+            duration_df['date'] = duration_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
+            
+            return duration_df.to_dict('records')
+        except Exception as e:
+            self.logger.error(f"計算超過90%持續時間失敗: {e}")
+            return []
+
+    def calculate_statistics_12h(self, df: pd.DataFrame) -> Dict[str, float]:
+        """計算基於12小時工作時段的統計數據"""
+        if df is None or df.empty:
+            return {
+                "hourly_average": 0.0,
+                "daily_average": 0.0,
+                "period_average": 0.0,
+                "max_utilization": 0.0,
+                "min_utilization": 0.0
+            }
+        
+        try:
+            period_avg = float(df['utilization_gpu'].mean())
+            max_util = float(df['utilization_gpu'].max())
+            min_util = float(df['utilization_gpu'].min())
+            
+            # 每小時平均使用率 (12小時內所有小時的平均)
+            hourly_avg = float(df.groupby(['date', 'hour'])['utilization_gpu'].mean().mean())
+            
+            # 每日平均使用率 (每日12小時內，每小時最高值的平均)
+            daily_max_hourly = df.groupby(['date', 'hour'])['utilization_gpu'].max()
+            daily_avg = float(daily_max_hourly.groupby('date').mean().mean())
+            
+            return {
+                "hourly_average": round(hourly_avg, 2),
+                "daily_average": round(daily_avg, 2),
+                "period_average": round(period_avg, 2),
+                "max_utilization": round(max_util, 2),
+                "min_utilization": round(min_util, 2)
+            }
+        except Exception as e:
+            self.logger.error(f"計算12小時統計數據失敗: {e}")
+            return {
+                "hourly_average": 0.0,
+                "daily_average": 0.0,
+                "period_average": 0.0,
+                "max_utilization": 0.0,
+                "min_utilization": 0.0
+            }
+
 
 # 創建全域伺服器實例
 server_instance = GPUMetricsServer()
@@ -638,17 +738,16 @@ def validate_request_data(schema_class):
             except ValidationError as e:
                 server_instance.logger.warning(f"資料驗證錯誤: {e.messages}")
                 return jsonify({
-                    "success": False,
-                    "detail": "資料格式驗證失敗",
-                    "error_code": "VALIDATION_ERROR",
-                    "errors": e.messages
+                    "code": 422,
+                    "message": "資料格式驗證失敗",
+                    "data": {"errors": e.messages}
                 }), 422
             except Exception as e:
                 server_instance.logger.error(f"處理請求時發生錯誤: {e}")
                 return jsonify({
-                    "success": False,
-                    "detail": "伺服器內部錯誤",
-                    "error_code": "INTERNAL_SERVER_ERROR"
+                    "code": 500,
+                    "message": f"伺服器內部錯誤: {str(e)}",
+                    "data": None
                 }), 500
         wrapper.__name__ = f.__name__
         return wrapper
@@ -682,9 +781,9 @@ def receive_gpu_data():
         data = request.get_json()
         if data is None:
             return jsonify({
-                "success": False,
-                "detail": "請求資料為空",
-                "error_code": "EMPTY_REQUEST"
+                "code": 400,
+                "message": "請求資料為空",
+                "data": None
             }), 400
         
         # 統一處理為列表格式
@@ -722,25 +821,27 @@ def receive_gpu_data():
         
         if success_count > 0:
             return jsonify({
-                "success": True,
-                "message": f"Batch data received: {success_count} successful, {failed_count} failed",
-                "received_count": success_count,
-                "failed_count": failed_count,
-                "timestamp": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                "code": 200,
+                "message": f"成功接收 {success_count} 筆資料，{failed_count} 筆失敗",
+                "data": {
+                    "received_count": success_count,
+                    "failed_count": failed_count,
+                    "timestamp": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
             })
         else:
             return jsonify({
-                "success": False,
-                "detail": "All data failed to save",
-                "error_code": "DATA_SAVE_FAILED"
+                "code": 500,
+                "message": "所有資料儲存失敗",
+                "data": None
             }), 500
             
     except Exception as e:
         server_instance.logger.error(f"接收批次資料時發生錯誤: {e}")
         return jsonify({
-            "success": False,
-            "detail": f"Internal server error: {str(e)}",
-            "error_code": "INTERNAL_SERVER_ERROR"
+            "code": 500,
+            "message": f"伺服器內部錯誤: {str(e)}",
+            "data": None
         }), 500
 
 
@@ -777,16 +878,17 @@ def get_gpu_statistics(validated_data):
         }
         
         return jsonify({
-            "success": True,
+            "code": 200,
+            "message": "查詢成功",
             "data": response_data
         })
         
     except Exception as e:
         server_instance.logger.error(f"取得統計數據時發生錯誤: {e}")
         return jsonify({
-            "success": False,
-            "detail": f"Internal server error: {str(e)}",
-            "error_code": "INTERNAL_SERVER_ERROR"
+            "code": 500,
+            "message": f"伺服器內部錯誤: {str(e)}",
+            "data": None
         }), 500
 
 
@@ -827,16 +929,17 @@ def get_hourly_usage(validated_data):
         }
         
         return jsonify({
-            "success": True,
+            "code": 200,
+            "message": "查詢成功",
             "data": response_data
         })
         
     except Exception as e:
         server_instance.logger.error(f"取得每小時使用率時發生錯誤: {e}")
         return jsonify({
-            "success": False,
-            "detail": f"Internal server error: {str(e)}",
-            "error_code": "INTERNAL_SERVER_ERROR"
+            "code": 500,
+            "message": f"伺服器內部錯誤: {str(e)}",
+            "data": None
         }), 500
 
 
@@ -877,16 +980,17 @@ def get_daily_usage(validated_data):
         }
         
         return jsonify({
-            "success": True,
+            "code": 200,
+            "message": "查詢成功",
             "data": response_data
         })
         
     except Exception as e:
         server_instance.logger.error(f"取得每日使用率時發生錯誤: {e}")
         return jsonify({
-            "success": False,
-            "detail": f"Internal server error: {str(e)}",
-            "error_code": "INTERNAL_SERVER_ERROR"
+            "code": 500,
+            "message": f"伺服器內部錯誤: {str(e)}",
+            "data": None
         }), 500
 
 
@@ -907,16 +1011,17 @@ def get_gpu_list(validated_data):
         gpu_list = server_instance.get_gpu_list(filtered_df)
         
         return jsonify({
-            "success": True,
+            "code": 200,
+            "message": "查詢成功",
             "data": gpu_list
         })
         
     except Exception as e:
         server_instance.logger.error(f"取得 GPU 清單時發生錯誤: {e}")
         return jsonify({
-            "success": False,
-            "detail": f"Internal server error: {str(e)}",
-            "error_code": "INTERNAL_SERVER_ERROR"
+            "code": 500,
+            "message": f"伺服器內部錯誤: {str(e)}",
+            "data": None
         }), 500
 
 
@@ -938,16 +1043,82 @@ def get_realtime_data(validated_data):
         )
         
         return jsonify({
-            "success": True,
+            "code": 200,
+            "message": "查詢成功",
             "data": realtime_data
         })
         
     except Exception as e:
         server_instance.logger.error(f"取得即時資料時發生錯誤: {e}")
         return jsonify({
-            "success": False,
-            "detail": f"Internal server error: {str(e)}",
-            "error_code": "INTERNAL_SERVER_ERROR"
+            "code": 500,
+            "message": f"伺服器內部錯誤: {str(e)}",
+            "data": None
+        }), 500
+
+
+@app.route("/api/gpu/query-history", methods=["POST"])
+@validate_request_data(GPUHistoryQuerySchema)
+def query_gpu_history(validated_data):
+    """GPU紀錄查詢API"""
+    try:
+        server_instance.logger.info(f"GPU紀錄查詢請求: {validated_data}")
+        
+        # 1. 載入 CSV 資料
+        df = server_instance.load_csv_data()
+        if df is None or df.empty:
+            return jsonify({"code": 404, "message": "找不到任何資料", "data": None}), 404
+
+        # 2. 依 start_date, end_date, gpu_id 篩選
+        filtered_df = server_instance.filter_data(
+            df,
+            start_date=validated_data['start_date'],
+            end_date=validated_data['end_date'],
+            gpu_id=validated_data['gpu_id']
+        )
+
+        # 3. 篩選 8:00-20:00 時段
+        working_hours_df = server_instance.filter_working_hours(filtered_df)
+        
+        if working_hours_df.empty:
+            return jsonify({
+                "code": 200,
+                "message": "在指定的時間範圍內沒有工作時段的資料",
+                "data": {
+                    "statistics": {},
+                    "hourly_max_usage": [],
+                    "hourly_over90_duration": []
+                }
+            })
+
+        # 4. 計算統計數據（12小時基準）
+        statistics = server_instance.calculate_statistics_12h(working_hours_df)
+
+        # 5. 計算每小時最高使用率
+        hourly_max_usage = server_instance.calculate_hourly_max_utilization(working_hours_df)
+
+        # 6. 計算每小時超過90%持續時間
+        hourly_over90_duration = server_instance.calculate_over90_duration(working_hours_df)
+
+        # 7. 組合回應
+        response_data = {
+            "statistics": statistics,
+            "hourly_max_usage": hourly_max_usage,
+            "hourly_over90_duration": hourly_over90_duration
+        }
+        
+        return jsonify({
+            "code": 200,
+            "message": "查詢成功",
+            "data": response_data
+        })
+
+    except Exception as e:
+        server_instance.logger.error(f"查詢GPU紀錄時發生錯誤: {e}")
+        return jsonify({
+            "code": 500,
+            "message": f"伺服器內部錯誤: {str(e)}",
+            "data": None
         }), 500
 
 
@@ -960,9 +1131,9 @@ def bad_request(error):
     """400 錯誤處理器"""
     server_instance.logger.warning(f"400 錯誤: {error}")
     return jsonify({
-        "success": False,
-        "detail": "請求格式錯誤",
-        "error_code": "BAD_REQUEST"
+        "code": 400,
+        "message": "請求格式錯誤",
+        "data": None
     }), 400
 
 
@@ -971,9 +1142,9 @@ def not_found(error):
     """404 錯誤處理器"""
     server_instance.logger.warning(f"404 錯誤: {error}")
     return jsonify({
-        "success": False,
-        "detail": "找不到請求的資源",
-        "error_code": "NOT_FOUND"
+        "code": 404,
+        "message": "找不到請求的資源",
+        "data": None
     }), 404
 
 
@@ -982,9 +1153,9 @@ def internal_error(error):
     """500 錯誤處理器"""
     server_instance.logger.error(f"500 錯誤: {error}")
     return jsonify({
-        "success": False,
-        "detail": "伺服器內部錯誤",
-        "error_code": "INTERNAL_SERVER_ERROR"
+        "code": 500,
+        "message": "伺服器內部錯誤",
+        "data": None
     }), 500
 
 
