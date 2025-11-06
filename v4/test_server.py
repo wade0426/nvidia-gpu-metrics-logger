@@ -238,6 +238,39 @@ def test_hourly_usage(base_url: str = "http://localhost:5000") -> bool:
         return False
 
 
+def test_query_history(base_url: str = "http://localhost:5000") -> bool:
+    """測試查詢歷史資料端點"""
+    try:
+        test_data = {
+            "start_date": "2024-11-02",
+            "end_date": "2024-11-04",
+            "gpu_id": 0,
+        }
+        
+        response = requests.post(
+            f"{base_url}/api/gpu/query-history",
+            json=test_data,
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success") or result.get("code") == 200:
+                result_str = json.dumps(result, indent=4)
+                print(f"✅ 查詢歷史資料測試通過，伺服器回傳: {result_str}")
+                return True
+            else:
+                print(f"❌ 查詢歷史資料請求失敗: {result}")
+                return False
+        else:
+            print(f"❌ 查詢歷史資料請求失敗，狀態碼: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 查詢歷史資料測試錯誤: {e}")
+        return False
+
+
 def test_daily_usage(base_url: str = "http://localhost:5000") -> bool:
     """測試每日使用率端點"""
     try:
@@ -327,8 +360,9 @@ def main():
         # ("單一資料接收功能", lambda: test_receive_data(base_url)),
         # ("批次資料接收功能", lambda: test_receive_batch_data(base_url)),
         # ("GPU 清單功能", lambda: test_gpu_list(base_url)),
-        ("統計數據功能", lambda: test_statistics(base_url)),
-        ("每小時使用率功能", lambda: test_hourly_usage(base_url)),
+        # ("統計數據功能", lambda: test_statistics(base_url)),
+        # ("每小時使用率功能", lambda: test_hourly_usage(base_url)),
+        ("查詢歷史資料功能", lambda: test_query_history(base_url)),
         # ("每日使用率功能", lambda: test_daily_usage(base_url)),
         # ("即時資料功能", lambda: test_realtime_data(base_url))
     ]
