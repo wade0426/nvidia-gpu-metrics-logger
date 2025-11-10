@@ -242,8 +242,8 @@ def test_query_history(base_url: str = "http://localhost:5000") -> bool:
     """測試查詢歷史資料端點"""
     try:
         test_data = {
-            "start_date": "2024-11-02",
-            "end_date": "2024-11-04",
+            "start_date": "2025-11-10",
+            "end_date": "2025-11-10",
             "gpu_id": 0,
         }
         
