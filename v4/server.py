@@ -122,7 +122,7 @@ class GPUHistoryQuerySchema(Schema):
     
     start_date = fields.Str(required=True)
     end_date = fields.Str(required=True)
-    gpu_id = fields.Int(required=True)
+    client_name = fields.Str(allow_none=True, missing=None) # 選填
 
 
 # ============================================================================
@@ -1069,12 +1069,13 @@ def query_gpu_history(validated_data):
         if df is None or df.empty:
             return jsonify({"code": 404, "message": "找不到任何資料", "data": None}), 404
 
-        # 2. 依 start_date, end_date, gpu_id 篩選
+        # 2. 依 start_date, end_date, client_name 篩選
+        # client_name 如果為 None,filter_data 會自動回傳所有使用者的資料
         filtered_df = server_instance.filter_data(
             df,
             start_date=validated_data['start_date'],
             end_date=validated_data['end_date'],
-            gpu_id=validated_data['gpu_id']
+            client_name=validated_data.get('client_name')  # 使用 get() 以支援 None
         )
 
         # 3. 篩選 8:00-20:00 時段
