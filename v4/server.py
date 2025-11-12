@@ -646,20 +646,40 @@ class GPUMetricsServer:
             return []
         
         try:
+            # 取得資料的日期範圍
+            all_dates = df['date'].unique()
+            
+            # 建立完整的小時結構
+            full_hours = []
+            for date in all_dates:
+                for hour in range(8, 20):  # 8-19點
+                    full_hours.append({
+                        'date': date.strftime('%Y-%m-%d') if hasattr(date, 'strftime') else str(date),
+                        'hour': hour,
+                        'duration': 0
+                    })
+            
             # 篩選超過90%的紀錄
             over90_df = df[df['utilization_gpu'] > 90]
             
-            if over90_df.empty:
-                return []
+            if not over90_df.empty:
+                # 計算每小時數量並轉換為分鐘 (每5秒一筆 = 12筆/分鐘)
+                duration_series = over90_df.groupby(['date', 'hour']).size() / 12
+                duration_df = duration_series.reset_index(name='duration')
+                
+                # 更新實際有超過90%的小時
+                for _, row in duration_df.iterrows():
+                    date_str = row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
+                    hour = int(row['hour'])
+                    duration = row['duration']
+                    
+                    # 找到對應的時間點並更新
+                    for item in full_hours:
+                        if item['date'] == date_str and item['hour'] == hour:
+                            item['duration'] = duration
+                            break
             
-            # 計算每小時數量並轉換為分鐘 (每5秒一筆 = 12筆/分鐘)
-            duration_series = over90_df.groupby(['date', 'hour']).size() / 12
-            duration_df = duration_series.reset_index(name='duration')
-            
-            # 轉換日期格式
-            duration_df['date'] = duration_df['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
-            
-            return duration_df.to_dict('records')
+            return full_hours
         except Exception as e:
             self.logger.error(f"計算超過90%持續時間失敗: {e}")
             return []
