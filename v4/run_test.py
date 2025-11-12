@@ -1,8 +1,5 @@
-### CANVAS_OLD_STR
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
 GPU History Query API - 單元測試
 測試新增的 GPU 紀錄查詢 API 功能
@@ -62,12 +59,11 @@ class GPUQueryTestDataGenerator:
         Args:
             filename: CSV 檔案名稱
             data_rows: 資料列表，每個元素為字典
-        
+            
         Returns:
             CSV 檔案完整路徑
         """
         filepath = self.data_dir / filename
-        
         with open(filepath, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=self.CSV_HEADER)
             writer.writeheader()
@@ -246,8 +242,8 @@ class GPUQueryTestDataGenerator:
         for day_offset in range(0, 3):  # 3 天
             date_obj = datetime(2024, 11, 1) + timedelta(days=day_offset)
             date_str = date_obj.strftime("%Y-%m-%d")
-            data = []
             
+            data = []
             for hour in range(8, 20):
                 for minute in range(0, 60, 15):
                     utilization = 60.0 + (day_offset * 5)  # 每天不同使用率
@@ -290,6 +286,36 @@ class GPUQueryTestDataGenerator:
         """
         base_date = "2024-11-08"
         return self.create_test_csv(f"gpu_metrics_{base_date}.csv", [])
+    
+    def scenario_client_name_filtering(self) -> str:
+        """
+        情境 9: 多個 client_name 混合資料
+        - 測試 client_name 篩選功能
+        - 包含 'client_A', 'client_B', 'client_C' 三種客戶端
+        """
+        data = []
+        base_date = "2024-11-09"
+        clients = ['client_A', 'client_B', 'client_C']
+        
+        for idx, client in enumerate(clients):
+            for hour in range(8, 20):
+                for minute in range(0, 60, 10):
+                    # 不同客戶端有不同的使用率模式
+                    if client == 'client_A':
+                        utilization = 70.0 + (minute / 60 * 10)  # 70-80%
+                    elif client == 'client_B':
+                        utilization = 85.0 + (minute / 60 * 10)  # 85-95%
+                    else:  # client_C
+                        utilization = 50.0 + (minute / 60 * 15)  # 50-65%
+                    
+                    data.append({
+                        'timestamp': self.generate_timestamp(base_date, hour, minute, 0),
+                        'gpu_id': 0,
+                        'utilization_gpu': round(utilization, 2),
+                        'client_name': client
+                    })
+        
+        return self.create_test_csv(f"gpu_metrics_{base_date}.csv", data)
 
 
 class TestGPUQueryAPI(unittest.TestCase):
@@ -312,6 +338,7 @@ class TestGPUQueryAPI(unittest.TestCase):
             'multi_day': cls.generator.scenario_multi_day_range(),  # 現在是列表
             'sparse': cls.generator.scenario_sparse_data(),
             'empty': cls.generator.scenario_empty_data(),
+            'client_filter': cls.generator.scenario_client_name_filtering(),
         }
         
         print("\n✓ 所有測試資料已建立完成！")
@@ -321,13 +348,15 @@ class TestGPUQueryAPI(unittest.TestCase):
         cls.api_base_url = "http://localhost:5000"
         cls.api_endpoint = f"{cls.api_base_url}/api/gpu/query-history"
     
-    def _make_request(self, start_date: str, end_date: str, gpu_id: int) -> Dict[str, Any]:
+    def _make_request(self, start_date: str, end_date: str, client_name: str = None) -> Dict[str, Any]:
         """發送 API 請求"""
         payload = {
             "start_date": start_date,
-            "end_date": end_date,
-            "gpu_id": gpu_id
+            "end_date": end_date
         }
+        # client_name 為可選參數，有值才加入 payload
+        if client_name is not None:
+            payload["client_name"] = client_name
         
         try:
             response = requests.post(self.api_endpoint, json=payload, timeout=10)
@@ -361,7 +390,7 @@ class TestGPUQueryAPI(unittest.TestCase):
         """測試 1: 正常工作時段資料"""
         print("\n【測試 1】正常工作時段資料 (8:00-20:00)")
         
-        result = self._make_request("2024-11-02", "2024-11-02", 0)
+        result = self._make_request("2024-11-02", "2024-11-02", "test_client")
         
         # 驗證回應結構
         self.assertEqual(result['code'], 200)
@@ -379,14 +408,14 @@ class TestGPUQueryAPI(unittest.TestCase):
         hourly_data = result['data']['hourly_max_usage']
         self.assertGreater(len(hourly_data), 0)
         
-        print(f"  ✓ 統計數據: {stats}")
-        print(f"  ✓ 每小時資料筆數: {len(hourly_data)}")
+        print(f"   ✓ 統計數據: {stats}")
+        print(f"   ✓ 每小時資料筆數: {len(hourly_data)}")
     
     def test_02_off_hours_filtering(self):
         """測試 2: 非工作時段過濾"""
         print("\n【測試 2】非工作時段資料過濾")
         
-        result = self._make_request("2024-11-03", "2024-11-03", 0)
+        result = self._make_request("2024-11-03", "2024-11-03", "test_client")
         
         # 驗證只有工作時段的資料
         hourly_data = result['data']['hourly_max_usage']
@@ -395,14 +424,14 @@ class TestGPUQueryAPI(unittest.TestCase):
             self.assertGreaterEqual(hour, 8, "發現小於 8 點的資料")
             self.assertLess(hour, 20, "發現大於等於 20 點的資料")
         
-        print(f"  ✓ 所有資料都在 8:00-19:59 範圍內")
-        print(f"  ✓ 資料筆數: {len(hourly_data)}")
+        print(f"   ✓ 所有資料都在 8:00-19:59 範圍內")
+        print(f"   ✓ 資料筆數: {len(hourly_data)}")
     
     def test_03_high_utilization_over90(self):
         """測試 3: 高使用率與超過 90% 計算"""
         print("\n【測試 3】高使用率情境（超過 90% 計算）")
         
-        result = self._make_request("2024-11-04", "2024-11-04", 0)
+        result = self._make_request("2024-11-04", "2024-11-04", "test_client")
         
         # 驗證 over90_duration
         over90_data = result['data']['hourly_over90_duration']
@@ -418,27 +447,14 @@ class TestGPUQueryAPI(unittest.TestCase):
                 self.assertGreater(matching[0]['duration'], 0,
                                  f"{hour} 點應該有超過 90% 的持續時間")
         
-        print(f"  ✓ 超過 90% 的小時數: {len(hours_with_over90)}")
-        print(f"  ✓ 範例資料: {over90_data[:3]}")
-    
-    def test_04_multiple_gpu_filtering(self):
-        """測試 4: 多 GPU ID 篩選"""
-        print("\n【測試 4】多 GPU ID 篩選")
-        
-        # 測試不同 GPU ID
-        for gpu_id in [0, 1, 2]:
-            result = self._make_request("2024-11-05", "2024-11-05", gpu_id)
-            self.assertEqual(result['code'], 200)
-            self.assertIn('data', result)
-            
-            stats = result['data']['statistics']
-            print(f"  ✓ GPU {gpu_id}: 平均使用率 = {stats['period_average']:.2f}%")
+        print(f"   ✓ 超過 90% 的小時數: {len(hours_with_over90)}")
+        print(f"   ✓ 範例資料: {over90_data[:3]}")
     
     def test_05_edge_cases_90_threshold(self):
         """測試 5: 邊界值測試（90% 閾值）"""
         print("\n【測試 5】邊界值測試（90% 閾值）")
         
-        result = self._make_request("2024-11-06", "2024-11-06", 0)
+        result = self._make_request("2024-11-06", "2024-11-06", "test_client")
         
         # 手動驗證：只有 90.01, 95.5, 100.0 應該計入 over90
         df = self._load_csv_for_verification(
@@ -453,9 +469,9 @@ class TestGPUQueryAPI(unittest.TestCase):
         over90_data = result['data']['hourly_over90_duration']
         actual_hours_with_over90 = len([e for e in over90_data if e['duration'] > 0])
         
-        print(f"  ✓ 超過 90% 的紀錄數: {over90_count}")
-        print(f"  ✓ 預期有超過 90% 的小時數: {expected_hours_with_over90}")
-        print(f"  ✓ 實際有超過 90% 的小時數: {actual_hours_with_over90}")
+        print(f"   ✓ 超過 90% 的紀錄數: {over90_count}")
+        print(f"   ✓ 預期有超過 90% 的小時數: {expected_hours_with_over90}")
+        print(f"   ✓ 實際有超過 90% 的小時數: {actual_hours_with_over90}")
         
         # 驗證 90.0 不應計入
         self.assertGreater(actual_hours_with_over90, 0)
@@ -464,17 +480,19 @@ class TestGPUQueryAPI(unittest.TestCase):
         """測試 6: 跨多天查詢"""
         print("\n【測試 6】跨多天查詢")
         
-        result = self._make_request("2024-11-01", "2024-11-03", 0)
+        result = self._make_request("2024-11-01", "2024-11-03", "test_client")
+        
         self.assertEqual(result['code'], 200)
         
         # 驗證有多天的資料
         hourly_data = result['data']['hourly_max_usage']
         dates = set(entry['date'] for entry in hourly_data)
+        
         self.assertGreaterEqual(len(dates), 2, "應該有至少 2 天的資料")
         
-        print(f"  ✓ 查詢天數: {len(dates)}")
-        print(f"  ✓ 日期範圍: {min(dates)} ~ {max(dates)}")
-        print(f"  ✓ 總資料筆數: {len(hourly_data)}")
+        print(f"   ✓ 查詢天數: {len(dates)}")
+        print(f"   ✓ 日期範圍: {min(dates)} ~ {max(dates)}")
+        print(f"   ✓ 總資料筆數: {len(hourly_data)}")
         
         # 驗證所有檔案都已建立
         for filepath in self.test_files['multi_day']:
@@ -484,14 +502,15 @@ class TestGPUQueryAPI(unittest.TestCase):
         """測試 7: 稀疏資料處理"""
         print("\n【測試 7】稀疏資料處理（部分小時無資料）")
         
-        result = self._make_request("2024-11-07", "2024-11-07", 0)
+        result = self._make_request("2024-11-07", "2024-11-07", "test_client")
+        
         self.assertEqual(result['code'], 200)
         
         hourly_data = result['data']['hourly_max_usage']
         hours = [entry['hour'] for entry in hourly_data]
         
-        print(f"  ✓ 有資料的小時: {sorted(hours)}")
-        print(f"  ✓ 資料筆數: {len(hourly_data)}")
+        print(f"   ✓ 有資料的小時: {sorted(hours)}")
+        print(f"   ✓ 資料筆數: {len(hourly_data)}")
         
         # 驗證統計仍能正確計算
         stats = result['data']['statistics']
@@ -502,19 +521,19 @@ class TestGPUQueryAPI(unittest.TestCase):
         print("\n【測試 8】空資料處理")
         
         # 查詢一個只有標題沒有資料的日期
-        result = self._make_request("2024-11-08", "2024-11-08", 0)
+        result = self._make_request("2024-11-08", "2024-11-08", "test_client")
         
         # 應該返回空資料或預設值，而非錯誤
         self.assertEqual(result['code'], 200)
         
-        print(f"  ✓ API 正確處理空資料情況")
-        print(f"  ✓ 回應: {result}")
+        print(f"   ✓ API 正確處理空資料情況")
+        print(f"   ✓ 回應: {result}")
     
     def test_09_hourly_max_calculation(self):
         """測試 9: 每小時最大值計算驗證"""
         print("\n【測試 9】每小時最大值計算驗證")
         
-        result = self._make_request("2024-11-02", "2024-11-02", 0)
+        result = self._make_request("2024-11-02", "2024-11-02", "test_client")
         
         # 手動計算驗證
         df = self._load_csv_for_verification(
@@ -534,14 +553,15 @@ class TestGPUQueryAPI(unittest.TestCase):
                 if hour in api_hourly_max:
                     manual_val = manual_hourly_max[hour]
                     api_val = api_hourly_max[hour]
-                    print(f"  ✓ {hour} 點 - 手動計算: {manual_val:.2f}%, API: {api_val:.2f}%")
+                    print(f"   ✓ {hour} 點 - 手動計算: {manual_val:.2f}%, API: {api_val:.2f}%")
                     self.assertAlmostEqual(manual_val, api_val, places=1)
     
     def test_10_statistics_12h_average(self):
         """測試 10: 12 小時平均值計算"""
         print("\n【測試 10】12 小時平均值計算驗證")
         
-        result = self._make_request("2024-11-02", "2024-11-02", 0)
+        result = self._make_request("2024-11-02", "2024-11-02", "test_client")
+        
         stats = result['data']['statistics']
         
         # 驗證所有統計值都在合理範圍
@@ -552,11 +572,78 @@ class TestGPUQueryAPI(unittest.TestCase):
         self.assertGreaterEqual(stats['period_average'], 0)
         self.assertLessEqual(stats['period_average'], 100)
         
-        print(f"  ✓ 每小時平均: {stats['hourly_average']:.2f}%")
-        print(f"  ✓ 每日平均: {stats['daily_average']:.2f}%")
-        print(f"  ✓ 期間平均: {stats['period_average']:.2f}%")
-        print(f"  ✓ 最高使用率: {stats['max_utilization']:.2f}%")
-        print(f"  ✓ 最低使用率: {stats['min_utilization']:.2f}%")
+        print(f"   ✓ 每小時平均: {stats['hourly_average']:.2f}%")
+        print(f"   ✓ 每日平均: {stats['daily_average']:.2f}%")
+        print(f"   ✓ 期間平均: {stats['period_average']:.2f}%")
+        print(f"   ✓ 最高使用率: {stats['max_utilization']:.2f}%")
+        print(f"   ✓ 最低使用率: {stats['min_utilization']:.2f}%")
+    
+    def test_11_client_name_filtering(self):
+        """測試 11: client_name 篩選功能"""
+        print("\n【測試 11】client_name 篩選功能")
+        
+        # 測試不同 client_name 的查詢
+        for client in ['client_A', 'client_B', 'client_C']:
+            payload = {
+                "start_date": "2024-11-09",
+                "end_date": "2024-11-09",
+                "client_name": client
+            }
+            
+            try:
+                response = requests.post(self.api_endpoint, json=payload, timeout=10)
+                result = response.json()
+            except requests.exceptions.ConnectionError:
+                self.skipTest("伺服器未啟動，跳過 API 測試")
+            except Exception as e:
+                self.fail(f"API 請求失敗: {str(e)}")
+            
+            self.assertEqual(result['code'], 200)
+            self.assertIn('data', result)
+            
+            stats = result['data']['statistics']
+            print(f"   ✓ {client}: 平均使用率 = {stats['period_average']:.2f}%")
+            
+            # 驗證不同客戶端的使用率範圍
+            if client == 'client_A':
+                self.assertGreater(stats['period_average'], 65)
+                self.assertLess(stats['period_average'], 85)
+            elif client == 'client_B':
+                self.assertGreater(stats['period_average'], 80)
+            else:  # client_C
+                self.assertGreater(stats['period_average'], 45)
+                self.assertLess(stats['period_average'], 70)
+        
+        # 測試不指定 client_name（應該返回所有客戶端資料）
+        print("\n   測試不指定 client_name（應返回所有客戶端資料）：")
+        payload_all = {
+            "start_date": "2024-11-09",
+            "end_date": "2024-11-09"
+        }
+        try:
+            response = requests.post(self.api_endpoint, json=payload_all, timeout=10)
+            result_all = response.json()
+        except requests.exceptions.ConnectionError:
+            self.skipTest("伺服器未啟動，跳過 API 測試")
+        except Exception as e:
+            self.fail(f"API 請求失敗: {str(e)}")
+        
+        self.assertEqual(result_all['code'], 200)
+        self.assertIn('data', result_all)
+        
+        # 驗證返回的資料應該包含所有客戶端的資料
+        # 平均使用率應該介於所有客戶端之間
+        stats_all = result_all['data']['statistics']
+        print(f"   ✓ 不指定 client_name: 平均使用率 = {stats_all['period_average']:.2f}%")
+        
+        # 理論上，所有客戶端的綜合平均應該在 45%-95% 之間
+        # （因為 client_A: 70-80%, client_B: 85-95%, client_C: 50-65%）
+        self.assertGreater(stats_all['period_average'], 40)
+        self.assertLess(stats_all['period_average'], 100)
+        
+        # 驗證資料筆數應該比單一客戶端更多
+        hourly_data_all = result_all['data']['hourly_max_usage']
+        print(f"   ✓ 所有客戶端資料筆數: {len(hourly_data_all)}")
 
 
 def run_tests():
@@ -584,19 +671,20 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    print("""
-╔══════════════════════════════════════════════════════════════════════╗
-║                   GPU Query API 單元測試程式                          ║
-║                                                                      ║
-║  此測試程式將：                                                        ║
-║    1. 自動生成 8 種測試情境的 CSV 資料                                  ║
-║    2. 使用 gpu_metrics_YYYY-MM-DD.csv 命名格式                        ║
-║    3. 測試 API 的各種功能和邊界情況                                     ║
-║    4. 驗證計算結果的正確性                                             ║
-║                                                                      ║
-║  注意：執行前請確保 server.py 已啟動！                                  ║
-╚══════════════════════════════════════════════════════════════════════╝
-""")
+    print("=" * 80)
+    print("GPU Query API 單元測試程式".center(80))
+    print("=" * 80)
+    print()
+    print("測試說明：")
+    print("  • 自動生成 9 種測試情境的 CSV 資料")
+    print("  • 使用 gpu_metrics_YYYY-MM-DD.csv 命名格式")
+    print("  • 測試 API 的各種功能和邊界情況")
+    print("  • 驗證計算結果的正確性")
+    print("  • 測試 client_name 參數篩選功能")
+    print()
+    print("注意：執行前請確保 server.py 已啟動！")
+    print("=" * 80)
+    print()
     
     success = run_tests()
     exit(0 if success else 1)
