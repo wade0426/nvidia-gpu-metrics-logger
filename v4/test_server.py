@@ -244,7 +244,7 @@ def test_query_history(base_url: str = "http://localhost:5000") -> bool:
         test_data = {
             "start_date": "2025-11-10",
             "end_date": "2025-11-10",
-            "gpu_id": 0,
+            "client_name": "gpu-client-001",
         }
         
         response = requests.post(
