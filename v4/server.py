@@ -628,14 +628,36 @@ class GPUMetricsServer:
             return []
         
         try:
+            # 取得資料的日期範圍
+            all_dates = df['date'].unique()
+            
+            # 建立完整的小時結構
+            full_hours = []
+            for date in all_dates:
+                for hour in range(8, 20):  # 8-19點
+                    full_hours.append({
+                        'date': date.strftime('%Y-%m-%d') if hasattr(date, 'strftime') else str(date),
+                        'hour': hour,
+                        'max_utilization': 0.0
+                    })
+            
             # 按日期和小時分組，取最大值
             hourly_max = df.groupby(['date', 'hour'])['utilization_gpu'].max().reset_index()
             hourly_max.rename(columns={'utilization_gpu': 'max_utilization'}, inplace=True)
             
-            # 轉換日期格式
-            hourly_max['date'] = hourly_max['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
+            # 更新實際有資料的小時
+            for _, row in hourly_max.iterrows():
+                date_str = row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
+                hour = int(row['hour'])
+                max_util = round(float(row['max_utilization']), 2)
+                
+                # 找到對應的時間點並更新
+                for item in full_hours:
+                    if item['date'] == date_str and item['hour'] == hour:
+                        item['max_utilization'] = max_util
+                        break
             
-            return hourly_max.to_dict('records')
+            return full_hours
         except Exception as e:
             self.logger.error(f"計算每小時最高使用率失敗: {e}")
             return []
